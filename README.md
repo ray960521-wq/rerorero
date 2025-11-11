@@ -2,7 +2,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>一起來舔管管吧</title>
+    <title>一起來舔管管吧!</title>
     <!-- 載入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 載入 Tone.js 用於預設音效 -->
@@ -15,7 +15,7 @@
         body, html {
             height: 100%;
             margin: 0;
-            overflow: hidden; /* 隱藏捲軸 */
+            /* overflow: hidden; */ /* <-- 修正：移除此行，允許選單捲動 */
         }
         
         body {
