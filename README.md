@@ -1,9 +1,8 @@
-<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>舔舔反應速度訓練</title>
+    <title>反應速度訓練</title>
     <!-- 載入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 載入 Tone.js 用於預設音效 -->
@@ -13,25 +12,30 @@
     <!-- 新增：Cropper.js 裁切工具的 JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            overflow: hidden; /* 隱藏捲軸 */
+        }
+        
         body {
             font-family: 'Inter', sans-serif;
             -webkit-tap-highlight-color: transparent;
             user-select: none;
             cursor: default;
         }
-        
-        html, body {
-            height: 100%;
-            margin: 0;
-            overflow: hidden;
-        }
 
-        #target-image {
+        /* 遊戲目標 (單一或多重) */
+        .game-target {
             position: absolute;
             transition: top 0.1s ease-out, left 0.1s ease-out;
-            display: none;
             border-radius: 50%; 
             object-fit: cover; 
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            cursor: pointer;
+        }
+        .game-target:active {
+            transform: scale(0.95);
         }
 
         /* 點擊特效圖片的樣式 */
@@ -70,7 +74,7 @@
             background-color: #4A5568;
         }
 
-        /* 新增：裁切視窗的樣式 */
+        /* 裁切視窗的樣式 */
         #cropper-modal {
             position: fixed;
             top: 0;
@@ -98,18 +102,32 @@
             display: block;
             max-width: 100%;
         }
+
+        /* 遊戲主容器 */
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        /* 頂部 HUD 面板 */
+        #hud-container {
+            flex-shrink: 0; /* 防止面板縮小 */
+            background-color: #1F2937; /* 較深的灰色 */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+        }
+        /* 遊戲區域 */
+        #game-area {
+            position: relative; /* 關鍵：讓目標相對於此區域定位 */
+            flex-grow: 1; /* 填滿剩餘空間 */
+            background-color: #111827; /* 最深的灰色 */
+            overflow: hidden; /* 隱藏溢出的目標 */
+        }
     </style>
 </head>
-<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
+<body class="bg-gray-900 text-white">
 
-    <!-- 遊戲目標 (src 會在 JS 中設定) -->
-    <img id="target-image" 
-         src="" 
-         alt="點擊目標" 
-         class="w-24 h-24 md:w-32 md:h-32 shadow-xl cursor-pointer transition-transform active:scale-95"
-         draggable="false">
-
-    <!-- 新增：裁切視窗 (預設隱藏) -->
+    <!-- 裁切視窗 (預設隱藏) -->
     <div id="cropper-modal" class="hidden">
         <div class="bg-gray-800 p-4 rounded-lg shadow-xl">
             <!-- 裁切圖片將顯示於此 -->
@@ -125,93 +143,130 @@
         </div>
     </div>
 
-    <!-- 遊戲主選單 -->
-    <div id="menu-screen" class="text-center p-8 bg-gray-800 rounded-lg shadow-2xl max-w-md w-full">
-        <h1 class="text-4xl font-bold mb-6">反應速度訓練</h1>
+    <!-- 遊戲主選單 (全螢幕) -->
+    <div id="menu-screen" class="flex items-center justify-center min-h-screen">
+        <div class="text-center p-8 bg-gray-800 rounded-lg shadow-2xl max-w-md w-full">
+            <h1 class="text-4xl font-bold mb-6">反應速度訓練</h1>
 
-        <!-- 圖片上傳區 -->
-        <div class="grid grid-cols-2 gap-4 mb-6 text-sm">
-            <div>
-                <label for="target-upload" class="custom-file-upload">
-                    上傳「點擊目標」
-                </label>
-                <input id="target-upload" type="file" accept="image/*">
-                <img id="target-preview" src="https://i.imgur.com/gK2oH1N.png" class="w-16 h-16 rounded-full mx-auto mt-2 object-cover">
+            <!-- 圖片上傳區 -->
+            <div class="grid grid-cols-2 gap-4 mb-6 text-sm">
+                <div>
+                    <label for="target-upload" class="custom-file-upload">
+                        上傳「點擊目標」
+                    </label>
+                    <input id="target-upload" type="file" accept="image/*">
+                    <img id="target-preview" src="https://i.imgur.com/gK2oH1N.png" class="w-16 h-16 rounded-full mx-auto mt-2 object-cover">
+                </div>
+                <div>
+                    <label for="effect-upload" class="custom-file-upload">
+                        上傳「點擊特效」
+                    </label>
+                    <input id="effect-upload" type="file" accept="image/*">
+                    <img id="effect-preview" src="https://i.imgur.com/8Q0G3Jk.png" class="w-16 h-16 object-contain mx-auto mt-2">
+                </div>
             </div>
-            <div>
-                <label for="effect-upload" class="custom-file-upload">
-                    上傳「點擊特效」
+
+            <!-- 上傳音效按鈕 -->
+            <div class="mb-4 text-sm">
+                <label for="sound-upload" class="custom-file-upload w-full">
+                    上傳「點擊音效」(.mp3, .wav)
                 </label>
-                <input id="effect-upload" type="file" accept="image/*">
-                <img id="effect-preview" src="https://i.imgur.com/8Q0G3Jk.png" class="w-16 h-16 object-contain mx-auto mt-2">
+                <input id="sound-upload" type="file" accept="audio/*">
+                <p id="sound-preview" class="text-gray-400 mt-2 h-6">使用預設「啵」聲</p>
             </div>
-        </div>
 
-        <!-- 上傳音效按鈕 -->
-        <div class="mb-4 text-sm">
-            <label for="sound-upload" class="custom-file-upload w-full">
-                上傳「點擊音效」(.mp3, .wav)
-            </label>
-            <input id="sound-upload" type="file" accept="audio/*">
-            <p id="sound-preview" class="text-gray-400 mt-2 h-6">使用預設「啵」聲</p>
-        </div>
+            <!-- Google Drive 連結 -->
+            <div class="mb-6 text-sm text-gray-400 border border-gray-600 p-3 rounded-lg">
+                <p class="font-bold text-white mb-2">尋找更多圖片？</p>
+                <a href="https://drive.google.com/drive/folders/1J014ESx-HFTpfvkw_Ym-6slYfEvMkwm8?usp=drive_link" 
+                   target="_blank" 
+                   class="text-blue-400 hover:underline">
+                   點此瀏覽建議的圖片庫
+                </a>
+                <p class="mt-2">（提醒：您需要從該連結下載圖片，然後再使用上方的「上傳」按鈕）</p>
+            </div>
 
-        <!-- 新增：Google Drive 連結 -->
-        <div class="mb-6 text-sm text-gray-400 border border-gray-600 p-3 rounded-lg">
-            <p class="font-bold text-white mb-2">尋找更多圖片？</p>
-            <a href="https://drive.google.com/drive/folders/1J014ESx-HFTpfvkw_Ym-6slYfEvMkwm8?usp=drive_link" 
-               target="_blank" 
-               class="text-blue-400 hover:underline">
-               點此瀏覽建議的圖片庫
-            </a>
-            <p class="mt-2">（提醒：您需要從該連結下載圖片，然後再使用上方的「上傳」按鈕）</p>
-        </div>
+            <!-- 新增：遊戲模式選擇 -->
+            <div class="mb-4">
+                <label class="block mb-2 text-lg">遊戲模式：</label>
+                <div class="flex justify-center gap-4">
+                    <button id="mode-single-btn" class="flex-1 bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">
+                        單一目標
+                    </button>
+                    <button id="mode-multi-btn" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">
+                        多重目標
+                    </button>
+                </div>
+            </div>
 
-
-        <!-- 計時模式 -->
-        <div class="mb-4">
-            <label for="time-input" class="block mb-2 text-lg">設定時間（秒）：</label>
-            <input id="time-input" type="number" value="30" min="5" class="w-full p-2 text-center text-black rounded-md text-2xl">
+            <!-- 計時模式 -->
+            <div class="mb-4">
+                <label for="time-input" class="block mb-2 text-lg">設定時間（秒）：</label>
+                <input id="time-input" type="number" value="30" min="5" class="w-full p-2 text-center text-black rounded-md text-2xl">
+            </div>
+            <button id="start-timed-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-xl mb-4 transition-colors">
+                開始計時模式
+            </button>
+            
+            <!-- 無限模式 -->
+            <button id="start-infinite-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg text-xl transition-colors">
+                開始無限模式
+            </button>
         </div>
-        <button id="start-timed-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-xl mb-4 transition-colors">
-            開始計時模式
-        </button>
+    </div>
+
+    <!-- 遊戲進行中 (包含 HUD 和 遊戲區域) -->
+    <div id="game-container" class="hidden">
         
-        <!-- 無限模式 -->
-        <button id="start-infinite-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg text-xl transition-colors">
-            開始無限模式
-        </button>
+        <!-- 頂部 HUD 面板 -->
+        <div id="hud-container" class="w-full p-4 flex justify-between items-center">
+            <!-- 分數 -->
+            <div class="flex items-center space-x-2">
+                <img src="" alt="分數圖示" class="w-10 h-10 object-contain score-icon">
+                <p id="score-display" class="text-4xl font-extrabold text-yellow-400">0</p>
+            </div>
+            
+            <!-- 計時器 -->
+            <div id="timer-container" class="hidden text-center">
+                <span class="text-gray-400 text-xl">時間</span>
+                <p id="timer-display" class="text-4xl font-extrabold text-red-500">30</p>
+            </div>
+            
+            <!-- 離開按鈕 -->
+            <button id="exit-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                返回選單
+            </button>
+        </div>
+
+        <!-- 遊戲區域 -->
+        <div id="game-area">
+            <!-- 單一目標 (預設) -->
+            <img id="target-image" 
+                 src="" 
+                 alt="點擊目標" 
+                 class="game-target w-24 h-24 md:w-32 md:h-32"
+                 draggable="false"
+                 style="display: none;"> <!-- 預設隱藏 -->
+            
+            <!-- 多重目標會被動態加入到這裡 -->
+        </div>
     </div>
 
-    <!-- 遊戲中介面 -->
-    <div id="game-screen" class="hidden text-center absolute top-5 left-1/2 -translate-x-1/2">
-        <!-- 分數 (src 會在 JS 中設定) -->
-        <div class="mb-4 flex items-center justify-center space-x-2">
-            <img src="" alt="分數圖示" class="w-12 h-12 object-contain score-icon">
-            <p id="score-display" class="text-6xl font-extrabold text-yellow-400">0</p>
-        </div>
-        <!-- 倒數計時 -->
-        <div id="timer-container" class="hidden">
-            <span class="text-gray-400 text-2xl">時間</span>
-            <p id="timer-display" class="text-6xl font-extrabold text-red-500">30</p>
-        </div>
-         <button id="exit-btn" class="mt-8 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
-            返回選單
-        </button>
-    </div>
 
-    <!-- 遊戲結束畫面 -->
-    <div id="game-over-screen" class="hidden text-center p-8 bg-gray-800 rounded-lg shadow-2xl">
-        <h2 class="text-3xl font-bold mb-2">時間到！</h2>
-        <p class="text-gray-400 text-xl mb-4">您的最終分數：</p>
-        <!-- 最終分數 (src 會在 JS 中設定) -->
-        <div class="flex items-center justify-center space-x-2 mb-8">
-            <img src="" alt="分數圖示" class="w-16 h-16 object-contain score-icon">
-            <p id="final-score" class="text-7xl font-extrabold text-yellow-400">0</p>
+    <!-- 遊戲結束畫面 (全螢幕) -->
+    <div id="game-over-screen" class="hidden items-center justify-center min-h-screen">
+        <div class="text-center p-8 bg-gray-800 rounded-lg shadow-2xl">
+            <h2 class="text-3xl font-bold mb-2">時間到！</h2>
+            <p class="text-gray-400 text-xl mb-4">您的最終分數：</p>
+            <!-- 最終分數 -->
+            <div class="flex items-center justify-center space-x-2 mb-8">
+                <img src="" alt="分數圖示" class="w-16 h-16 object-contain score-icon">
+                <p id="final-score" class="text-7xl font-extrabold text-yellow-400">0</p>
+            </div>
+            <button id="back-to-menu-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-xl transition-colors">
+                返回主選單
+            </button>
         </div>
-        <button id="back-to-menu-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-xl transition-colors">
-            返回主選單
-        </button>
     </div>
 
 
@@ -232,10 +287,12 @@
         // DOM 元素
         // -----------------------------------------------------
         const menuScreen = document.getElementById('menu-screen');
-        const gameScreen = document.getElementById('game-screen');
+        const gameContainer = document.getElementById('game-container'); // 遊戲主容器
+        const hudContainer = document.getElementById('hud-container'); // 頂部 HUD
+        const gameArea = document.getElementById('game-area');       // 遊戲區域
         const gameOverScreen = document.getElementById('game-over-screen');
         
-        const targetImage = document.getElementById('target-image');
+        const targetImage = document.getElementById('target-image'); // 單一目標
         const timeInput = document.getElementById('time-input');
         
         const startTimedBtn = document.getElementById('start-timed-btn');
@@ -260,17 +317,25 @@
         const soundUpload = document.getElementById('sound-upload');
         const soundPreview = document.getElementById('sound-preview');
 
-        // 新增：裁切視窗元素
+        // 裁切視窗元素
         const cropperModal = document.getElementById('cropper-modal');
         const cropperImage = document.getElementById('cropper-image');
         const cropBtn = document.getElementById('crop-btn');
         const cropCancelBtn = document.getElementById('crop-cancel-btn');
 
+        // 遊戲模式按鈕
+        const modeSingleBtn = document.getElementById('mode-single-btn');
+        const modeMultiBtn = document.getElementById('mode-multi-btn');
+
+        // -----------------------------------------------------
+        // 遊戲狀態變數
         // -----------------------------------------------------
         let score = 0;
         let timer = 0;
         let timerInterval = null;
-        let gameMode = 'infinite'; 
+        let timeMode = 'infinite'; 
+        let gameMode = 'single'; // 'single' 或 'multi'
+        const multiTargetCount = 5; // 多目標模式的數量
 
         // -----------------------------------------------------
         // 音效設定
@@ -284,11 +349,6 @@
 
         let currentClickSoundUrl = null; // 用於儲存自訂音效的 Data URL
 
-        // 新增：裁切工具相關變數
-        let cropper;
-        let currentUploadType = null; // 'target' 或 'effect'
-        let currentUploadFileType = 'image/png'; // 預設
-
         async function initAudio() {
             if (popSound && Tone.context.state !== 'running') {
                 try {
@@ -301,8 +361,11 @@
         }
         
         // -----------------------------------------------------
-        // 檔案上傳處理 (已修改為啟動裁切)
+        // 檔案上傳與裁切
         // -----------------------------------------------------
+        let cropper;
+        let currentUploadType = null; // 'target' 或 'effect'
+        let currentUploadFileType = 'image/png'; // 預設
         
         function handleImageUpload(e, uploadType) {
             const file = e.target.files[0];
@@ -314,51 +377,39 @@
             const reader = new FileReader();
             reader.onload = (event) => {
                 cropperImage.src = event.target.result;
-                
-                // 顯示裁切視窗
                 cropperModal.classList.remove('hidden');
                 cropperModal.classList.add('show');
 
-                // 銷毀舊的 cropper (如果存在)
                 if (cropper) {
                     cropper.destroy();
                 }
 
-                // 設定裁切選項
                 let options = {
                     viewMode: 1,
                     background: false,
                     autoCropArea: 0.8
                 };
                 
-                // 如果是「點擊目標」，強制 1:1 裁切
                 if (uploadType === 'target') {
-                    options.aspectRatio = 1 / 1;
+                    options.aspectRatio = 1 / 1; // 目標強制 1:1
                 }
 
-                // 初始化 Cropper
                 cropper = new Cropper(cropperImage, options);
             };
             reader.readAsDataURL(file);
-            
-            // 清空 input，這樣才能再次上傳同一個檔案
             e.target.value = null;
         }
 
         targetUpload.addEventListener('change', (e) => handleImageUpload(e, 'target'));
         effectUpload.addEventListener('change', (e) => handleImageUpload(e, 'effect'));
 
-        // 新增：處理裁切按鈕
         cropBtn.addEventListener('click', () => {
             if (!cropper) return;
-
-            // 獲取裁切後的 Data URL
             const croppedDataUrl = cropper.getCroppedCanvas({
-                maxWidth: 400, // 限制圖片大小
+                maxWidth: 400, 
                 maxHeight: 400,
             }).toDataURL(currentUploadFileType);
 
-            // 根據類型，更新對應的變數和預覽圖
             if (currentUploadType === 'target') {
                 currentTargetImageUrl = croppedDataUrl;
                 targetPreview.src = croppedDataUrl;
@@ -367,14 +418,12 @@
                 effectPreview.src = croppedDataUrl;
             }
 
-            // 隱藏裁切視窗
             cropperModal.classList.add('hidden');
             cropperModal.classList.remove('show');
             cropper.destroy();
             cropper = null;
         });
 
-        // 新增：處理取消裁切
         cropCancelBtn.addEventListener('click', () => {
             cropperModal.classList.add('hidden');
             cropperModal.classList.remove('show');
@@ -384,15 +433,13 @@
             cropper = null;
         });
 
-
-        // 音效上傳處理
         soundUpload.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file && file.type.startsWith('audio/')) {
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     currentClickSoundUrl = event.target.result;
-                    soundPreview.textContent = file.name; // 顯示檔案名稱
+                    soundPreview.textContent = file.name; 
                 };
                 reader.readAsDataURL(file);
             }
@@ -403,13 +450,13 @@
         // -----------------------------------------------------
 
         function showScreen(screenName) {
-            menuScreen.classList.add('hidden');
-            gameScreen.classList.add('hidden');
-            gameOverScreen.classList.add('hidden');
-            targetImage.style.display = 'none'; 
+            // 先隱藏所有全螢幕
+            menuScreen.style.display = 'none';
+            gameContainer.style.display = 'none';
+            gameOverScreen.style.display = 'none';
 
             if (screenName === 'menu') {
-                menuScreen.classList.remove('hidden');
+                menuScreen.style.display = 'flex';
                 // 重設預覽
                 targetPreview.src = currentTargetImageUrl;
                 effectPreview.src = currentClickEffectImageUrl;
@@ -419,36 +466,38 @@
                     soundPreview.textContent = "使用預設「啵」聲";
                 }
             } else if (screenName === 'game') {
-                gameScreen.classList.remove('hidden');
-                targetImage.style.display = 'block'; 
+                gameContainer.style.display = 'flex'; // 使用 flex
             } else if (screenName === 'game_over') {
-                gameOverScreen.classList.remove('hidden');
+                gameOverScreen.style.display = 'flex';
             }
         }
 
-        function moveTarget() {
-            const gameAreaWidth = document.body.clientWidth;
-            const gameAreaHeight = document.body.clientHeight;
-            const targetWidth = targetImage.offsetWidth;
-            const targetHeight = targetImage.offsetHeight;
+        // 移動目標 (現在接收一個 DOM 元素作為參數)
+        function moveTarget(elementToMove) {
+            // 使用 gameArea 的尺寸
+            const gameAreaWidth = gameArea.clientWidth;
+            const gameAreaHeight = gameArea.clientHeight;
+            const targetWidth = elementToMove.offsetWidth;
+            const targetHeight = elementToMove.offsetHeight;
 
             const maxX = gameAreaWidth - targetWidth;
             const maxY = gameAreaHeight - targetHeight;
 
             const randomX = Math.floor(Math.random() * maxX);
-            const randomY = Math.floor(Math.random() * (maxY - 150)) + 150; 
+            const randomY = Math.floor(Math.random() * maxY); 
 
-            targetImage.style.left = `${randomX}px`;
-            targetImage.style.top = `${randomY}px`;
+            elementToMove.style.left = `${randomX}px`;
+            elementToMove.style.top = `${randomY}px`;
         }
 
         function showClickEffect(x, y) {
             const effect = document.createElement('img');
             effect.src = currentClickEffectImageUrl; 
             effect.classList.add('click-effect-image');
+            // 修正座標，相對於 body
             effect.style.left = `${x - 25}px`; 
             effect.style.top = `${y - 25}px`;  
-            document.body.appendChild(effect);
+            document.body.appendChild(effect); // 附加到 body 上
 
             requestAnimationFrame(() => {
                 effect.classList.add('show');
@@ -460,22 +509,19 @@
             }, 300); 
         }
 
-        // *** 修正音效播放 ***
         function playClickSound() {
             if (currentClickSoundUrl) {
-                // 修正：建立新的 Audio 物件來播放，以允許重疊
                 const audio = new Audio(currentClickSoundUrl);
                 audio.play().catch(e => console.error("播放自訂音效失敗:", e));
             } else if (popSound) {
-                // 播放預設的 Tone.js 音效
                 try {
                     popSound.triggerAttackRelease("C3", "8n");
                 } catch (e) { console.error("播放預設音效錯誤:", e); }
             }
         }
 
-        function onTargetClick(event) {
-            // 只呼叫 playClickSound
+        // 點擊事件 (現在接收被點擊的目標)
+        function onTargetClick(event, targetElement) {
             playClickSound();
 
             score++;
@@ -488,7 +534,8 @@
                  showClickEffect(clickX, clickY);
             }
 
-            moveTarget();
+            // 只移動被點擊的那個目標
+            moveTarget(targetElement);
         }
 
         function updateTimer() {
@@ -499,23 +546,64 @@
             }
         }
 
+        // 清除所有目標 (多重或單一)
+        function clearTargets() {
+            // 移除所有多重目標
+            const multiTargets = gameArea.querySelectorAll('.multi-target');
+            multiTargets.forEach(target => target.remove());
+            
+            // 隱藏單一目標
+            targetImage.style.display = 'none';
+        }
+
+        // 產生多重目標
+        function spawnMultiTargets(count) {
+            for (let i = 0; i < count; i++) {
+                const newTarget = document.createElement('img');
+                newTarget.src = currentTargetImageUrl;
+                newTarget.alt = "點擊目標";
+                newTarget.draggable = false;
+                // 添加 'multi-target' 標記
+                newTarget.className = "game-target multi-target w-24 h-24";
+                
+                // 綁定事件
+                newTarget.addEventListener('mousedown', (e) => onTargetClick(e, newTarget)); 
+                newTarget.addEventListener('touchstart', (e) => {
+                    e.preventDefault(); 
+                    onTargetClick(e.touches[0] ? e.touches[0] : e, newTarget);
+                });
+                
+                gameArea.appendChild(newTarget);
+                moveTarget(newTarget); // 移動到初始位置
+            }
+        }
+
         async function startGame(mode) {
             await initAudio(); 
             
-            // --- 套用使用者上傳的圖片 ---
+            timeMode = mode;
+            score = 0;
+            scoreDisplay.textContent = 0;
+            
+            // 套用使用者上傳的圖片
             targetImage.src = currentTargetImageUrl;
             scoreIcons.forEach(icon => {
                 icon.src = currentClickEffectImageUrl;
             });
-            // ---
 
-            gameMode = mode;
-            score = 0;
-            scoreDisplay.textContent = 0;
             showScreen('game');
-            moveTarget();
+            clearTargets(); // 清除上一局的目標
 
-            if (gameMode === 'timed') {
+            // 根據遊戲模式建立目標
+            if (gameMode === 'single') {
+                targetImage.style.display = 'block';
+                moveTarget(targetImage); // 移動單一目標
+            } else { // 'multi'
+                spawnMultiTargets(multiTargetCount);
+            }
+
+            // 設定計時器
+            if (timeMode === 'timed') {
                 timer = parseInt(timeInput.value, 10) || 30;
                 timerDisplay.textContent = timer;
                 timerContainer.classList.remove('hidden');
@@ -523,7 +611,7 @@
                 if (timerInterval) clearInterval(timerInterval);
                 timerInterval = setInterval(updateTimer, 1000);
 
-            } else { 
+            } else { // 'infinite'
                 timerContainer.classList.add('hidden');
                 if (timerInterval) clearInterval(timerInterval);
                 timerInterval = null;
@@ -540,6 +628,7 @@
         function returnToMenu() {
             if (timerInterval) clearInterval(timerInterval);
             timerInterval = null;
+            clearTargets(); // 離開時清除目標
             showScreen('menu');
         }
 
@@ -549,14 +638,34 @@
         startTimedBtn.addEventListener('click', () => startGame('timed'));
         startInfiniteBtn.addEventListener('click', () => startGame('infinite'));
         
-        targetImage.addEventListener('mousedown', onTargetClick); 
+        // 綁定單一目標的點擊
+        targetImage.addEventListener('mousedown', (e) => onTargetClick(e, targetImage)); 
         targetImage.addEventListener('touchstart', (e) => {
             e.preventDefault(); 
-            onTargetClick(e.touches[0] ? e.touches[0] : e);
+            onTargetClick(e.touches[0] ? e.touches[0] : e, targetImage);
         });
 
         exitBtn.addEventListener('click', returnToMenu);
         backToMenuBtn.addEventListener('click', returnToMenu);
+
+        // 模式選擇按鈕
+        modeSingleBtn.addEventListener('click', () => {
+            gameMode = 'single';
+            modeSingleBtn.classList.remove('bg-gray-600', 'hover:bg-gray-700');
+            modeSingleBtn.classList.add('bg-blue-600');
+            
+            modeMultiBtn.classList.add('bg-gray-600', 'hover:bg-gray-700');
+            modeMultiBtn.classList.remove('bg-blue-600');
+        });
+        modeMultiBtn.addEventListener('click', () => {
+            gameMode = 'multi';
+            modeMultiBtn.classList.remove('bg-gray-600', 'hover:bg-gray-700');
+            modeMultiBtn.classList.add('bg-blue-600');
+            
+            modeSingleBtn.classList.add('bg-gray-600', 'hover:bg-gray-700');
+            modeSingleBtn.classList.remove('bg-blue-600');
+        });
+
 
         // 初始顯示主選單並設定預覽
         showScreen('menu');
